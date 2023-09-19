@@ -178,12 +178,10 @@ where
                 let mut string = "".to_string();
 
                 for _ in 0..num_blank_lines_above {
-                    string += format!(
-                        "{}",
-                        DataGrid::<T>::create_constant_row(grid_width, cell_width, '│', '│', '│', ' ')
-                            .as_str()
+                    string += DataGrid::<T>::create_constant_row(
+                        grid_width, cell_width, '│', '│', '│', ' ',
                     )
-                    .as_str();
+                    .as_str()
                 }
 
                 // write row
@@ -198,7 +196,7 @@ where
                             format!(
                                 "{}{}{}",
                                 " ".repeat(spaces_before),
-                                item.to_string(),
+                                item,
                                 " ".repeat(spaces_after)
                             )
                         })
@@ -211,19 +209,18 @@ where
                 // let num_blank_lines_below = (cell_width - 1) - num_blank_lines_above; // subtract here for the same reason as above
                 let num_blank_lines_below = 1;
                 for _ in 0..num_blank_lines_below {
-                    string += format!(
-                        "{}",
-                        DataGrid::<T>::create_constant_row(grid_width, cell_width, '│', '│', '│', ' ')
-                            .as_str()
+                    string += DataGrid::<T>::create_constant_row(
+                        grid_width, cell_width, '│', '│', '│', ' ',
                     )
-                    .as_str();
+                    .as_str()
                 }
 
                 string
             })
             .collect::<Vec<String>>()
             .join(
-                DataGrid::<T>::create_constant_row(grid_width, cell_width, '├', '┼', '┤', '─').as_str(),
+                DataGrid::<T>::create_constant_row(grid_width, cell_width, '├', '┼', '┤', '─')
+                    .as_str(),
             );
 
         write!(f, "{}", inner_rows)?;
