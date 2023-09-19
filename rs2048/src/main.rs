@@ -1,8 +1,12 @@
-use data_grid::DataGrid;
+use crate::board::Board;
+
+mod board;
 
 fn main() {
-    let mut x = DataGrid::new(4, 4, 0);
-    x.update_column(2, vec![1, 2, 3, 4]).unwrap();
-
-    println!("{}", x);
+    let mut board = Board::new(4);
+    board.place_item_in_board(2, 1, 32).unwrap();
+    board.place_item_in_board(1, 1, 32).unwrap();
+    println!("{}", board);
+    board.merge_up();
+    print!("{}", board);
 }
