@@ -113,7 +113,6 @@ impl<T: Clone> DataGrid<T> {
         Ok(())
     }
 
-
     /// Updates a single position in the matrix with the provided value.
     ///
     /// # Arguments
@@ -125,8 +124,18 @@ impl<T: Clone> DataGrid<T> {
     /// # Returns
     ///
     /// Returns `Ok(())` if the update was successful, or an `Err(MatrixError)` with a description of the error otherwise.
-    pub fn update_single_position(&mut self, row: usize, column: usize, value: T) -> Result<(), MatrixError> {
-        *(self.values.get_mut(row).ok_or(MatrixError::IndexNotFound)?.get_mut(column).ok_or(MatrixError::IndexNotFound)?) = value;
+    pub fn update_single_position(
+        &mut self,
+        row: usize,
+        column: usize,
+        value: T,
+    ) -> Result<(), MatrixError> {
+        *(self
+            .values
+            .get_mut(row)
+            .ok_or(MatrixError::IndexNotFound)?
+            .get_mut(column)
+            .ok_or(MatrixError::IndexNotFound)?) = value;
         Ok(())
     }
 
@@ -136,7 +145,7 @@ impl<T: Clone> DataGrid<T> {
     ///
     /// Returns the height of the matrix as a `usize` value.
     pub fn get_height(&self) -> usize {
-        return self.values.len();
+        self.values.len()
     }
 
     /// Gets the width (number of columns) of the matrix.
@@ -145,7 +154,7 @@ impl<T: Clone> DataGrid<T> {
     ///
     /// Returns the width of the matrix as a `usize` value.
     pub fn get_width(&self) -> usize {
-        return self.values[0].len();
+        self.values[0].len()
     }
 }
 
