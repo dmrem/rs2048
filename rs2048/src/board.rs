@@ -1,4 +1,5 @@
 use data_grid::{DataGrid, MatrixError};
+use rand::seq::SliceRandom;
 use std::fmt::{Display, Formatter};
 
 type TileType = u32;
@@ -6,6 +7,11 @@ type TileType = u32;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Board {
     board: DataGrid<TileType>,
+}
+
+#[derive(Debug)]
+pub enum BoardError {
+    AddRandomTileError,
 }
 
 impl Board {
@@ -114,6 +120,59 @@ impl Board {
         }
 
         result
+    }
+
+    /// Adds a new tile with a random value to a random empty position on the board.
+    ///
+    /// The function searches for empty positions on the board and randomly selects one
+    /// to place a new tile. The new tile is assigned a value of either 2 or 4 based on
+    /// a weighted choice (3:1 ratio for 2's and 4's).
+    ///
+    /// # Errors
+    ///
+    /// If there are no empty positions on the board, an `Err(BoardError::AddRandomTileError)`
+    /// is returned, indicating that there is no available space to insert a new tile.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(())` if a new tile is successfully added.
+    /// - An error variant of `BoardError` if the operation fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut board = Board::new(4);
+    /// board.add_random_tile().unwrap();
+    /// ```
+    pub fn add_random_tile(&mut self) -> Result<(), BoardError> {
+        let empty_positions: Vec<(usize, usize)> = self
+            .board
+            .iter_rows()
+            .enumerate()
+            .flat_map(|(y_index, vec)| {
+                vec.iter()
+                    .enumerate()
+                    .filter(|&(_x_index, &item)| item == 0)
+                    .map(|(x_index, _item)| (x_index, y_index))
+                    .collect::<Vec<(usize, usize)>>()
+            })
+            .collect();
+
+        if let Some(pos) = empty_positions.choose(&mut rand::thread_rng()) {
+            let value_to_add = [2 as TileType, 4]
+                .choose_weighted(
+                    &mut rand::thread_rng(),
+                    |item| if *item == 2 { 3 } else { 1 },
+                )
+                .unwrap();
+            self.board
+                .update_single_position(pos.1, pos.0, *value_to_add)
+                .unwrap();
+        } else {
+            return Err(BoardError::AddRandomTileError); // nowhere to insert tile
+        }
+
+        Ok(())
     }
 }
 

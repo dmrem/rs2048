@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 data_grid = { path = "../data_grid" }
+pancurses = { version = "0.17.0", features = ["win32"] }
+rand = "0.8.5"

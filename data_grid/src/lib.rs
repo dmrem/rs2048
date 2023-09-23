@@ -139,6 +139,61 @@ impl<T: Clone> DataGrid<T> {
         Ok(())
     }
 
+    /// Transpose the DataGrid, converting columns into rows.
+    ///
+    /// # Returns
+    ///
+    /// A new DataGrid representing the transposed data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use data_grid::DataGrid;
+    /// let grid: DataGrid<i32> = DataGrid::try_from(vec![vec![1, 2, 3], vec![1, 2, 3]]).unwrap();
+    /// let transposed_grid: DataGrid<i32> = grid.transpose();
+    ///
+    /// assert!(transposed_grid == DataGrid::try_from(vec![vec![1, 1], vec![2, 2], vec![3, 3]]).unwrap());
+    /// ```
+    pub fn transpose(&self) -> DataGrid<T> {
+        if self.values.is_empty() {
+            // this will never happen because the constructor prevents it
+            return self.clone();
+        }
+
+        // The internal values object is a Vec<Vec<T>. This data is stored such that each inner vec is a row.
+        // By getting each column, we can store those as the rows in the new data grid, getting transposition for free.
+        // See the implementation of get_column for context.
+        let rows: Vec<Vec<T>> = (0..self.get_width())
+            .map(|col_index| match self.get_column(col_index) {
+                Some(item) => item,
+                None => Vec::new(),
+            })
+            .collect();
+
+        DataGrid { values: rows }
+    }
+
+    /// Returns an immutable iterator over the rows in the DataGrid.
+    ///
+    /// To iterate over columns, call `grid.transpose().iter_rows()`.
+    ///
+    /// # Returns
+    ///
+    /// An iterator that yields references to rows as `&Vec<T>`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use data_grid::DataGrid;
+    /// let grid: DataGrid<i32> = DataGrid::try_from(vec![vec![1, 2, 3], vec![1, 2, 3]]).unwrap();
+    /// for row in grid.iter_rows() {
+    ///     // Process each row.
+    /// }
+    /// ```
+    pub fn iter_rows(&self) -> impl Iterator<Item = &Vec<T>> {
+        self.values.iter()
+    }
+
     /// Gets the height (number of rows) of the matrix.
     ///
     /// # Returns
@@ -415,5 +470,17 @@ mod tests {
         let actual = matrix.update_column(4, data);
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_transpose() {
+        let grid: DataGrid<i32> =
+            DataGrid::try_from(vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]]).unwrap();
+        let transposed_grid: DataGrid<i32> = grid.transpose();
+        let expected_grid: DataGrid<i32> =
+            DataGrid::try_from(vec![vec![1, 4, 7], vec![2, 5, 8], vec![3, 6, 9]]).unwrap();
+
+        // Assert that the transposed grid matches the expected grid
+        assert_eq!(transposed_grid, expected_grid);
     }
 }
