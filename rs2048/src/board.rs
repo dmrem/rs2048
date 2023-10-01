@@ -41,7 +41,7 @@ impl Board {
     /// # Returns
     ///
     /// Returns `Ok(())` if the placement was successful, or an `Err(MatrixError)` with a description of the error otherwise.
-    pub fn place_item_in_board(
+    fn place_item_in_board(
         &mut self,
         column: usize,
         row: usize,
