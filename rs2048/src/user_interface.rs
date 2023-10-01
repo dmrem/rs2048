@@ -13,6 +13,17 @@ enum MainMenuOption {
     Quit,
 }
 
+/// This is the entrypoint to the game.
+///
+/// This function initializes the TUI and starts the main menu event loop.
+///
+/// # Arguments
+///
+/// * `writer` - A mutable reference to an `io::Write` implementor for writing to the terminal.
+///
+/// # Returns
+///
+/// Returns an `io::Result` that indicates success or failure.
 pub fn start_app<W: io::Write>(writer: &mut W) -> io::Result<()> {
     writer.execute(terminal::EnterAlternateScreen)?;
     terminal::enable_raw_mode()?;
@@ -31,6 +42,17 @@ pub fn start_app<W: io::Write>(writer: &mut W) -> io::Result<()> {
     Ok(())
 }
 
+/// Main loop for the game's main menu.
+///
+/// This function handles user input and navigation within the main menu.
+///
+/// # Arguments
+///
+/// * `writer` - A mutable reference to an `io::Write` implementor for writing to the terminal.
+///
+/// # Returns
+///
+/// Returns an `io::Result` that indicates success or failure.
 fn main_menu_loop<W: io::Write>(writer: &mut W) -> io::Result<()> {
     let mut selected_option = NewGame;
     loop {
@@ -55,7 +77,8 @@ fn main_menu_loop<W: io::Write>(writer: &mut W) -> io::Result<()> {
                         Quit => selected_option = NewGame,
                     },
                     KeyCode::Enter => {
-                        return Ok(()); // will eventually start main game loop, not yet implemented
+                        writer.execute(Clear(ClearType::All))?;
+                        game_loop(writer,Game::start_new_game())?;
                     }
                     _ => {}
                 }
@@ -69,6 +92,20 @@ fn main_menu_loop<W: io::Write>(writer: &mut W) -> io::Result<()> {
     }
 }
 
+/// Renders the main menu on the terminal.
+///
+/// This function draws the main menu options and highlights the selected option. All parameters
+/// such as positions, sizes, etc are hardcoded and immutable.
+///
+/// # Arguments
+///
+/// * `writer` - A mutable reference to an `io::Write` implementor for writing to the terminal.
+/// * `selected_option` - The currently selected main menu option. This option will be drawn in
+///   yellow.
+///
+/// # Returns
+///
+/// Returns an `io::Result` that indicates success or failure.
 fn render_main_menu<W: io::Write>(
     writer: &mut W,
     selected_option: &MainMenuOption,
@@ -137,8 +174,24 @@ fn render_main_menu<W: io::Write>(
     Ok(())
 }
 
+/// Returns a padded string with specified width.
+///
+/// This function takes some text and pads it with spaces on both sides to
+/// achieve the desired width. It ensures that the text is centered within the width.
+/// If the text is longer than the desired width, just returns the text.
+///
+/// # Arguments
+///
+/// * `text` - The text to pad.
+/// * `width` - The desired width of the padded string.
+///
+/// # Returns
+///
+/// A `String` containing the padded text.
 fn get_padded_string(text: &str, width: usize) -> String {
-    assert!(text.len() < width);
+    if text.len() < width {
+        return text.to_string();
+    }
     let num_spaces_on_left = (width - text.len()) / 2;
     let num_spaces_on_right = width - (num_spaces_on_left + text.len());
     format!(
@@ -149,12 +202,19 @@ fn get_padded_string(text: &str, width: usize) -> String {
     )
 }
 
-fn game_loop(initial_game_state: Result<Game, GameError>) {
+fn game_loop<W: io::Write>(writer: &mut W, initial_game_state: Result<Game, GameError>) -> io::Result<()> {
     let mut game_state = initial_game_state;
     loop {}
 }
 
-fn render_game(game_state: Result<Game, GameError>) {
+fn render_entire_game_screen<W: io::Write>(writer: &mut W, game_state: Result<Game, GameError>) -> io::Result<()> {
+    match game_state {
+        Err(e) => todo!(),
+        Ok(game) => todo!(),
+    }
+}
+
+fn rerender_board<W: io::Write>(writer: &mut W, game_state: Result<Game, GameError>) -> io::Result<()> {
     match game_state {
         Err(e) => todo!(),
         Ok(game) => todo!(),
