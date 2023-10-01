@@ -21,7 +21,6 @@ pub enum GameEvent {
 pub enum GameError {}
 
 impl Game {
-
     // Game is intended to be immutable. This function will consume the Game and return a new one.
     pub fn handle_event(self, event: GameEvent) -> Result<Game, GameError> {
         match event {
