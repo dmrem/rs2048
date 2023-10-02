@@ -2,11 +2,11 @@ use data_grid::{DataGrid, MatrixError};
 use rand::seq::SliceRandom;
 use std::fmt::{Display, Formatter};
 
-type TileType = u32;
+type TileType = u8;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Board {
-    board: DataGrid<TileType>,
+    board: DataGrid<TileType>, // items are stored as their power of 2 - if 3 is in the grid, that means 8 is shown in game because 2^3=8
 }
 
 #[derive(Debug)]
@@ -65,8 +65,10 @@ impl Board {
         for i in 0..self.board.get_width() {
             let mut column = self.board.get_column(i).unwrap();
             column.reverse();
+            let mut merged = Board::merge_tiles(&column);
+            merged.reverse();
             self.board
-                .update_column(i, Board::merge_tiles(&column))
+                .update_column(i, merged)
                 .unwrap();
         }
     }
@@ -84,7 +86,9 @@ impl Board {
         for i in 0..self.board.get_height() {
             let mut row = self.board.get_row(i).unwrap();
             row.reverse();
-            self.board.update_row(i, Board::merge_tiles(&row)).unwrap();
+            let mut merged = Board::merge_tiles(&row);
+            merged.reverse();
+            self.board.update_row(i, merged).unwrap();
         }
     }
 
@@ -111,7 +115,7 @@ impl Board {
             }
 
             if index > 0 && result[index - 1] == value {
-                result[index - 1] *= 2;
+                result[index - 1] += 1;
                 result[index] = 0;
             } else {
                 result[index] = value;
@@ -159,15 +163,13 @@ impl Board {
             .collect();
 
         if let Some(pos) = empty_positions.choose(&mut rand::thread_rng()) {
-            let value_to_add = [2 as TileType, 4]
+            let value_to_add = [1 as TileType, 2]
                 .choose_weighted(
                     &mut rand::thread_rng(),
-                    |item| if *item == 2 { 3 } else { 1 },
+                    |item| if *item == 1 { 3 } else { 1 },
                 )
                 .unwrap();
-            self.board
-                .update_single_position(pos.1, pos.0, *value_to_add)
-                .unwrap();
+            self.place_item_in_board(pos.1, pos.0, *value_to_add).unwrap();
         } else {
             return Err(BoardError::AddRandomTileError); // nowhere to insert tile
         }
@@ -190,21 +192,21 @@ mod tests {
     #[test]
     fn merge_simple() {
         let input = vec![2 as TileType, 2, 0, 0];
-        let expected = vec![4 as TileType, 0, 0, 0];
+        let expected = vec![3 as TileType, 0, 0, 0];
         let actual = Board::merge_tiles(&input);
         assert_eq!(expected, actual);
     }
     #[test]
     fn merge_with_spaces() {
         let input = vec![2 as TileType, 0, 2, 0];
-        let expected = vec![4 as TileType, 0, 0, 0];
+        let expected = vec![3 as TileType, 0, 0, 0];
         let actual = Board::merge_tiles(&input);
         assert_eq!(expected, actual);
     }
     #[test]
     fn merge_but_cant() {
-        let input = vec![2 as TileType, 4, 2, 4];
-        let expected = vec![2 as TileType, 4, 2, 4];
+        let input = vec![2 as TileType, 3, 2, 3];
+        let expected = vec![2 as TileType, 3, 2, 3];
         let actual = Board::merge_tiles(&input);
         assert_eq!(expected, actual);
     }
@@ -212,7 +214,23 @@ mod tests {
     #[test]
     fn merge_all_same() {
         let input = vec![2 as TileType, 2, 2, 2];
-        let expected = vec![4 as TileType, 4, 0, 0];
+        let expected = vec![3 as TileType, 3, 0, 0];
+        let actual = Board::merge_tiles(&input);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn dont_merge_twice_at_once() {
+        let input = vec![1 as TileType, 1, 2, 0];
+        let expected = vec![2 as TileType, 2, 0, 0];
+        let actual = Board::merge_tiles(&input);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn dont_merge_twice_at_once_reverse() {
+        let input = vec![2 as TileType, 1, 1, 0];
+        let expected = vec![2 as TileType, 2, 0, 0];
         let actual = Board::merge_tiles(&input);
         assert_eq!(expected, actual);
     }
@@ -236,7 +254,7 @@ mod tests {
     #[test]
     fn merge_large_input() {
         let input = vec![2 as TileType; 1000];
-        let mut expected = vec![4 as TileType; 500];
+        let mut expected = vec![3 as TileType; 500];
         expected.extend(vec![0 as TileType; 500]);
         let actual = Board::merge_tiles(&input);
         assert_eq!(expected, actual);
@@ -258,7 +276,7 @@ mod tests {
 
         let expected = Board {
             board: DataGrid::try_from(vec![
-                vec![4, 0, 0, 0 as TileType],
+                vec![3, 0, 0, 0 as TileType],
                 vec![0, 0, 0, 0 as TileType],
                 vec![0, 0, 0, 0 as TileType],
                 vec![0, 0, 0, 0 as TileType],
@@ -277,9 +295,9 @@ mod tests {
         let input = Board {
             board: DataGrid::try_from(vec![
                 vec![2, 2, 2, 2 as TileType],
-                vec![4, 4, 4, 4 as TileType],
+                vec![3, 3, 3, 3 as TileType],
                 vec![2, 2, 2, 2 as TileType],
-                vec![4, 4, 4, 4 as TileType],
+                vec![3, 3, 3, 3 as TileType],
             ])
             .unwrap(),
         };
@@ -287,9 +305,9 @@ mod tests {
         let expected = Board {
             board: DataGrid::try_from(vec![
                 vec![2, 2, 2, 2 as TileType],
-                vec![4, 4, 4, 4 as TileType],
+                vec![3, 3, 3, 3 as TileType],
                 vec![2, 2, 2, 2 as TileType],
-                vec![4, 4, 4, 4 as TileType],
+                vec![3, 3, 3, 3 as TileType],
             ])
             .unwrap(),
         };
@@ -314,8 +332,8 @@ mod tests {
 
         let expected = Board {
             board: DataGrid::try_from(vec![
-                vec![4, 4, 4, 4 as TileType],
-                vec![4, 4, 4, 4 as TileType],
+                vec![3, 3, 3, 3 as TileType],
+                vec![3, 3, 3, 3 as TileType],
                 vec![0, 0, 0, 0 as TileType],
                 vec![0, 0, 0, 0 as TileType],
             ])
@@ -327,6 +345,87 @@ mod tests {
 
         assert_eq!(expected, actual);
     }
+    #[test]
+    fn merge_left_full_board() {
+        let input = Board {
+            board: DataGrid::try_from(vec![
+                vec![2, 2, 2, 2 as TileType],
+                vec![2, 2, 2, 2 as TileType],
+                vec![2, 2, 2, 2 as TileType],
+                vec![2, 2, 2, 2 as TileType],
+            ])
+            .unwrap(),
+        };
+
+        let expected = Board {
+            board: DataGrid::try_from(vec![
+                vec![3, 3, 0, 0 as TileType],
+                vec![3, 3, 0, 0 as TileType],
+                vec![3, 3, 0, 0 as TileType],
+                vec![3, 3, 0, 0 as TileType],
+            ])
+            .unwrap(),
+        };
+
+        let mut actual = input.clone();
+        actual.merge_left();
+
+        assert_eq!(expected, actual);
+    }
+    #[test]
+    fn merge_right_full_board() {
+        let input = Board {
+            board: DataGrid::try_from(vec![
+                vec![2, 2, 2, 2 as TileType],
+                vec![2, 2, 2, 2 as TileType],
+                vec![2, 2, 2, 2 as TileType],
+                vec![2, 2, 2, 2 as TileType],
+            ])
+            .unwrap(),
+        };
+
+        let expected = Board {
+            board: DataGrid::try_from(vec![
+                vec![0, 0, 3, 3 as TileType],
+                vec![0, 0, 3, 3 as TileType],
+                vec![0, 0, 3, 3 as TileType],
+                vec![0, 0, 3, 3 as TileType],
+            ])
+            .unwrap(),
+        };
+
+        let mut actual = input.clone();
+        actual.merge_right();
+
+        assert_eq!(expected, actual);
+    }
+    #[test]
+    fn merge_down_full_board() {
+        let input = Board {
+            board: DataGrid::try_from(vec![
+                vec![2, 2, 2, 2 as TileType],
+                vec![2, 2, 2, 2 as TileType],
+                vec![2, 2, 2, 2 as TileType],
+                vec![2, 2, 2, 2 as TileType],
+            ])
+            .unwrap(),
+        };
+
+        let expected = Board {
+            board: DataGrid::try_from(vec![
+                vec![0, 0, 0, 0 as TileType],
+                vec![0, 0, 0, 0 as TileType],
+                vec![3, 3, 3, 3 as TileType],
+                vec![3, 3, 3, 3 as TileType],
+            ])
+            .unwrap(),
+        };
+
+        let mut actual = input.clone();
+        actual.merge_down();
+
+        assert_eq!(expected, actual);
+    }
 
     #[test]
     fn merge_up_large_board() {
@@ -334,7 +433,7 @@ mod tests {
             board: DataGrid::try_from(vec![vec![2 as TileType; 1000]; 1000]).unwrap(),
         };
 
-        let mut expected_board = vec![vec![4 as TileType; 1000]; 500];
+        let mut expected_board = vec![vec![3 as TileType; 1000]; 500];
         expected_board.extend(vec![vec![0 as TileType; 1000]; 500]);
         let expected = Board {
             board: DataGrid::try_from(expected_board).unwrap(),

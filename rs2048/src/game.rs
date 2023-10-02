@@ -1,5 +1,8 @@
 use crate::board::Board;
+use std::fmt::{Display, Formatter};
+use crate::game::GameError::AddRandomTileError;
 
+#[derive(Debug, Clone)]
 pub struct Game {
     board: Board,
     score: u32,
@@ -18,23 +21,46 @@ pub enum GameEvent {
     NewGame,
 }
 
-pub enum GameError {}
+#[derive(Debug)]
+pub enum GameError {
+    AddRandomTileError
+}
 
 impl Game {
     // Game is intended to be immutable. This function will consume the Game and return a new one.
-    pub fn handle_event(self, event: GameEvent) -> Result<Game, GameError> {
+    pub fn handle_event(mut self, event: GameEvent) -> Result<Game, GameError> {
         match event {
             GameEvent::SwipeUp => {
-                todo!()
+                let before = self.clone();
+                self.board.merge_up();
+                if self.board != before.board {
+                    self.board.add_random_tile().or(Err(AddRandomTileError))?;
+                }
+                Ok(self)
             }
             GameEvent::SwipeDown => {
-                todo!()
+                let before = self.clone();
+                self.board.merge_down();
+                if self.board != before.board {
+                    self.board.add_random_tile().or(Err(AddRandomTileError))?;
+                }
+                Ok(self)
             }
             GameEvent::SwipeLeft => {
-                todo!()
+                let before = self.clone();
+                self.board.merge_left();
+                if self.board != before.board {
+                    self.board.add_random_tile().or(Err(AddRandomTileError))?;
+                }
+                Ok(self)
             }
             GameEvent::SwipeRight => {
-                todo!()
+                let before = self.clone();
+                self.board.merge_right();
+                if self.board != before.board {
+                    self.board.add_random_tile().or(Err(AddRandomTileError))?;
+                }
+                Ok(self)
             }
             GameEvent::Undo => {
                 todo!()
@@ -57,5 +83,11 @@ impl Game {
         };
         game.board.add_random_tile().unwrap();
         Ok(game)
+    }
+}
+
+impl Display for Game {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.board)
     }
 }

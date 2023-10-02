@@ -1,10 +1,13 @@
-use crate::game::{Game, GameError};
+use crate::game::{Game, GameError, GameEvent};
 use crate::user_interface::MainMenuOption::{LoadGame, NewGame, Quit};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
-use crossterm::style::{Print, Stylize};
 use crossterm::terminal::{Clear, ClearType};
-use crossterm::{cursor, event, queue, style, terminal, ExecutableCommand};
+use crossterm::{event, cursor, style, queue, ExecutableCommand, QueueableCommand, terminal};
 use std::io;
+use std::process::exit;
+use std::thread::sleep;
+use std::time::Duration;
+use crossterm::style::{Color, Stylize};
 
 #[derive(Debug, Eq, PartialEq)]
 enum MainMenuOption {
@@ -27,7 +30,6 @@ enum MainMenuOption {
 pub fn start_app<W: io::Write>(writer: &mut W) -> io::Result<()> {
     writer.execute(terminal::EnterAlternateScreen)?;
     terminal::enable_raw_mode()?;
-
     queue!(
         writer,
         style::ResetColor,
@@ -77,8 +79,18 @@ fn main_menu_loop<W: io::Write>(writer: &mut W) -> io::Result<()> {
                         Quit => selected_option = NewGame,
                     },
                     KeyCode::Enter => {
-                        writer.execute(Clear(ClearType::All))?;
-                        game_loop(writer,Game::start_new_game())?;
+                        match selected_option {
+                            NewGame => {
+                                writer.execute(Clear(ClearType::All))?;
+                                game_loop(writer, Game::start_new_game())?;
+                            }
+                            LoadGame => {
+                                unimplemented!()
+                            }
+                            Quit => {
+                                return Ok(()); // breaks loop and allows cleanup code to run
+                            }
+                        }
                     }
                     _ => {}
                 }
@@ -89,6 +101,7 @@ fn main_menu_loop<W: io::Write>(writer: &mut W) -> io::Result<()> {
             }
             _ => {}
         }
+        sleep(Duration::from_millis(100));
     }
 }
 
@@ -152,21 +165,21 @@ fn render_main_menu<W: io::Write>(
         } else {
             style::Color::White
         }),
-        Print(get_padded_string("New Game", (MENU_BOX_WIDTH - 2) as usize)),
+        style::Print(get_padded_string("New Game", (MENU_BOX_WIDTH - 2) as usize)),
         cursor::MoveTo(menu_box_left_x + 1, menu_box_top_y + 2),
         style::SetForegroundColor(if *selected_option == LoadGame {
             style::Color::Yellow
         } else {
             style::Color::White
         }),
-        Print(get_padded_string("Load", (MENU_BOX_WIDTH - 2) as usize)),
+        style::Print(get_padded_string("Load", (MENU_BOX_WIDTH - 2) as usize)),
         cursor::MoveTo(menu_box_left_x + 1, menu_box_top_y + 3),
         style::SetForegroundColor(if *selected_option == Quit {
             style::Color::Yellow
         } else {
             style::Color::White
         }),
-        Print(get_padded_string("Quit", (MENU_BOX_WIDTH - 2) as usize)),
+        style::Print(get_padded_string("Quit", (MENU_BOX_WIDTH - 2) as usize)),
     )?;
 
     writer.flush()?;
@@ -189,7 +202,7 @@ fn render_main_menu<W: io::Write>(
 ///
 /// A `String` containing the padded text.
 fn get_padded_string(text: &str, width: usize) -> String {
-    if text.len() < width {
+    if text.len() >= width {
         return text.to_string();
     }
     let num_spaces_on_left = (width - text.len()) / 2;
@@ -202,21 +215,155 @@ fn get_padded_string(text: &str, width: usize) -> String {
     )
 }
 
-fn game_loop<W: io::Write>(writer: &mut W, initial_game_state: Result<Game, GameError>) -> io::Result<()> {
+fn game_loop<W: io::Write>(
+    writer: &mut W,
+    initial_game_state: Result<Game, GameError>,
+) -> io::Result<()> {
+
+    render_everything_except_board(writer)?;
     let mut game_state = initial_game_state;
-    loop {}
+
+    loop {
+        match &game_state {
+            Err(err) => {
+                render_game_state_error(writer, err);
+            }
+            Ok(game) => {
+                render_board(writer, &game)?;
+            }
+        }
+        match event::read()? {
+            Event::Key(KeyEvent {
+                code: c,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                match c {
+                    KeyCode::Up => {
+                        game_state = game_state.unwrap().handle_event(GameEvent::SwipeUp);
+                    }
+                    KeyCode::Left => {
+                        game_state = game_state.unwrap().handle_event(GameEvent::SwipeLeft);
+                    }
+                    KeyCode::Right => {
+                        game_state = game_state.unwrap().handle_event(GameEvent::SwipeRight);
+                    }
+                    KeyCode::Down => {
+                        game_state = game_state.unwrap().handle_event(GameEvent::SwipeDown);
+                    }
+                    KeyCode::Char('q') => {
+                        writer.execute(Clear(ClearType::All))?;
+                        break;
+                    }
+                    KeyCode::Char('r') => {
+                        game_state = game_state.unwrap().handle_event(GameEvent::NewGame);
+                    }
+                    _ => {}
+                }
+            }
+            Event::Resize(_, _) => {
+                let game = game_state.unwrap();
+                render_everything_except_board(writer)?;
+                render_board(writer, &game)?;
+                game_state = Ok(game);
+            }
+            _ => {}
+        }
+        sleep(Duration::from_millis(100));
+    };
+
+    Ok(())
 }
 
-fn render_entire_game_screen<W: io::Write>(writer: &mut W, game_state: Result<Game, GameError>) -> io::Result<()> {
-    match game_state {
-        Err(e) => todo!(),
-        Ok(game) => todo!(),
+fn render_everything_except_board<W: io::Write>(
+    writer: &mut W,
+) -> io::Result<()> {
+
+    writer.queue(Clear(ClearType::All))?;
+
+    let size = terminal::size()?;
+    let controls = " Arrow Keys: Merge  R: Restart  Q: Quit";
+    queue!(
+        writer,
+        cursor::MoveTo(0, size.1),
+        style::SetBackgroundColor(Color::White),
+        style::SetForegroundColor(Color::Black),
+        style::Print(format!("{}{}", controls, " ".repeat(size.0 as usize - controls.chars().count()))),
+        style::ResetColor
+    )?;
+
+    //todo draw score
+
+    writer.flush()?;
+    Ok(())
+}
+
+fn render_board<W: io::Write>(
+    writer: &mut W,
+    game: &Game,
+) -> io::Result<()> {
+    let size = terminal::size()?;
+
+    // draw board
+    let board_text_lines = game
+        .to_string()
+        .split('\n')
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    let board_text_height = board_text_lines.len();
+    let board_text_width = board_text_lines[0].chars().count();
+    let board_left_side_x_pos = (size.0 - board_text_width as u16) / 2;
+    let board_top_side_y_pos = (size.1 - board_text_height as u16) / 2;
+
+    for (pos, str) in board_text_lines.iter().enumerate() {
+        queue!(
+            writer,
+            cursor::MoveTo(board_left_side_x_pos, board_top_side_y_pos + pos as u16),
+            style::Print(str),
+        )?;
     }
+
+    writer.flush()?;
+    Ok(())
 }
 
-fn rerender_board<W: io::Write>(writer: &mut W, game_state: Result<Game, GameError>) -> io::Result<()> {
-    match game_state {
-        Err(e) => todo!(),
-        Ok(game) => todo!(),
+fn render_game_state_error<W: io::Write>(writer: &mut W, e: &GameError) -> ! {
+    // this function always exits the program anyway, so if printing the error fails
+    // we just panic
+    queue!(
+        writer,
+        Clear(ClearType::All),
+        cursor::MoveTo(0, 0),
+        style::Print("Cannot continue the game. Error: "),
+    )
+    .unwrap();
+    let substrings: Vec<String> = format!("{:#?}", e)
+        .split('\n')
+        .map(|s| s.to_string())
+        .collect();
+    for str in substrings {
+        queue!(writer, cursor::MoveDown(1), style::Print(str)).unwrap();
+    }
+    queue!(
+        writer,
+        cursor::MoveDown(1),
+        style::Print("Press any key to exit the game.")
+    )
+    .unwrap();
+    writer.flush().unwrap();
+
+    loop {
+        match event::read() {
+            Ok(Event::Key(KeyEvent {
+                kind: KeyEventKind::Press,
+                ..
+            })) => {
+                writer
+                    .execute(terminal::LeaveAlternateScreen)
+                    .expect("Couldn't leave alternate screen buffer");
+                exit(1);
+            }
+            _ => {}
+        }
     }
 }
