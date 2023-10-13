@@ -1,6 +1,6 @@
-use crate::board::Board;
-use std::fmt::{Display, Formatter};
+use crate::board::{Board, TileType};
 use crate::game::GameError::AddRandomTileError;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
 pub struct Game {
@@ -23,7 +23,7 @@ pub enum GameEvent {
 
 #[derive(Debug)]
 pub enum GameError {
-    AddRandomTileError
+    AddRandomTileError,
 }
 
 impl Game {
@@ -83,6 +83,10 @@ impl Game {
         };
         game.board.add_random_tile().unwrap();
         Ok(game)
+    }
+
+    pub fn read_board_state(&self) -> &Vec<Vec<TileType>> {
+        self.board.get_data_for_display()
     }
 }
 

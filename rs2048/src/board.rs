@@ -2,7 +2,7 @@ use data_grid::{DataGrid, MatrixError};
 use rand::seq::SliceRandom;
 use std::fmt::{Display, Formatter};
 
-type TileType = u8;
+pub type TileType = u8;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Board {
@@ -67,9 +67,7 @@ impl Board {
             column.reverse();
             let mut merged = Board::merge_tiles(&column);
             merged.reverse();
-            self.board
-                .update_column(i, merged)
-                .unwrap();
+            self.board.update_column(i, merged).unwrap();
         }
     }
 
@@ -95,8 +93,7 @@ impl Board {
     /// Merges the tiles in a single row or column as if motion is from the back of the vector to the front.
     ///
     /// This function takes a vector representing a row or column of the game board and merges it according to
-    /// the rules of the 2048 game. It collapses adjacent tiles with the same value into a single tile by
-    /// doubling their value and setting the other tile to zero.
+    /// the rules of the 2048 game.
     ///
     /// # Arguments
     ///
@@ -105,24 +102,31 @@ impl Board {
     /// # Returns
     ///
     /// Returns a new vector with the merged tiles.
-    fn merge_tiles(tiles: &Vec<TileType>) -> Vec<TileType> {
-        let mut result = vec![0 as TileType; tiles.len()];
-        let mut index = 0usize; // current index in result vec
+    fn merge_tiles(tiles: &[TileType]) -> Vec<TileType> {
+        if tiles.is_empty() {
+            return vec![];
+        }
 
-        for &value in tiles {
-            if value == 0 {
+        let mut last_seen_tile: TileType = tiles[0];
+        let mut result: Vec<TileType> = Vec::with_capacity(tiles.len());
+
+        for &tile in tiles.iter().skip(1) {
+            if tile == 0 {
                 continue;
             }
 
-            if index > 0 && result[index - 1] == value {
-                result[index - 1] += 1;
-                result[index] = 0;
+            if tile == last_seen_tile {
+                result.push(tile + 1);
+                last_seen_tile = 0;
             } else {
-                result[index] = value;
-                index += 1;
+                if last_seen_tile != 0 {
+                    result.push(last_seen_tile);
+                }
+                last_seen_tile = tile;
             }
         }
-
+        result.push(last_seen_tile);
+        result.extend([0].repeat(tiles.len() - result.len()));
         result
     }
 
@@ -169,12 +173,17 @@ impl Board {
                     |item| if *item == 1 { 3 } else { 1 },
                 )
                 .unwrap();
-            self.place_item_in_board(pos.1, pos.0, *value_to_add).unwrap();
+            self.place_item_in_board(pos.1, pos.0, *value_to_add)
+                .unwrap();
         } else {
             return Err(BoardError::AddRandomTileError); // nowhere to insert tile
         }
 
         Ok(())
+    }
+
+    pub fn get_data_for_display(&self) -> &Vec<Vec<TileType>> {
+        self.board.get_values()
     }
 }
 

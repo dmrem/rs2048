@@ -1,13 +1,14 @@
+use crate::board::TileType;
 use crate::game::{Game, GameError, GameEvent};
 use crate::user_interface::MainMenuOption::{LoadGame, NewGame, Quit};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::style::{Color, StyledContent, Stylize};
 use crossterm::terminal::{Clear, ClearType};
-use crossterm::{event, cursor, style, queue, ExecutableCommand, QueueableCommand, terminal};
-use std::io;
+use crossterm::{cursor, event, queue, style, terminal, ExecutableCommand, QueueableCommand};
 use std::process::exit;
 use std::thread::sleep;
 use std::time::Duration;
-use crossterm::style::{Color, Stylize};
+use std::{cmp, io};
 
 #[derive(Debug, Eq, PartialEq)]
 enum MainMenuOption {
@@ -219,7 +220,6 @@ fn game_loop<W: io::Write>(
     writer: &mut W,
     initial_game_state: Result<Game, GameError>,
 ) -> io::Result<()> {
-
     render_everything_except_board(writer)?;
     let mut game_state = initial_game_state;
 
@@ -229,7 +229,7 @@ fn game_loop<W: io::Write>(
                 render_game_state_error(writer, err);
             }
             Ok(game) => {
-                render_board(writer, &game)?;
+                render_board(writer, game)?;
             }
         }
         match event::read()? {
@@ -237,30 +237,28 @@ fn game_loop<W: io::Write>(
                 code: c,
                 kind: KeyEventKind::Press,
                 ..
-            }) => {
-                match c {
-                    KeyCode::Up => {
-                        game_state = game_state.unwrap().handle_event(GameEvent::SwipeUp);
-                    }
-                    KeyCode::Left => {
-                        game_state = game_state.unwrap().handle_event(GameEvent::SwipeLeft);
-                    }
-                    KeyCode::Right => {
-                        game_state = game_state.unwrap().handle_event(GameEvent::SwipeRight);
-                    }
-                    KeyCode::Down => {
-                        game_state = game_state.unwrap().handle_event(GameEvent::SwipeDown);
-                    }
-                    KeyCode::Char('q') => {
-                        writer.execute(Clear(ClearType::All))?;
-                        break;
-                    }
-                    KeyCode::Char('r') => {
-                        game_state = game_state.unwrap().handle_event(GameEvent::NewGame);
-                    }
-                    _ => {}
+            }) => match c {
+                KeyCode::Up => {
+                    game_state = game_state.unwrap().handle_event(GameEvent::SwipeUp);
                 }
-            }
+                KeyCode::Left => {
+                    game_state = game_state.unwrap().handle_event(GameEvent::SwipeLeft);
+                }
+                KeyCode::Right => {
+                    game_state = game_state.unwrap().handle_event(GameEvent::SwipeRight);
+                }
+                KeyCode::Down => {
+                    game_state = game_state.unwrap().handle_event(GameEvent::SwipeDown);
+                }
+                KeyCode::Char('q') => {
+                    writer.execute(Clear(ClearType::All))?;
+                    break;
+                }
+                KeyCode::Char('r') => {
+                    game_state = game_state.unwrap().handle_event(GameEvent::NewGame);
+                }
+                _ => {}
+            },
             Event::Resize(_, _) => {
                 let game = game_state.unwrap();
                 render_everything_except_board(writer)?;
@@ -270,15 +268,12 @@ fn game_loop<W: io::Write>(
             _ => {}
         }
         sleep(Duration::from_millis(100));
-    };
+    }
 
     Ok(())
 }
 
-fn render_everything_except_board<W: io::Write>(
-    writer: &mut W,
-) -> io::Result<()> {
-
+fn render_everything_except_board<W: io::Write>(writer: &mut W) -> io::Result<()> {
     writer.queue(Clear(ClearType::All))?;
 
     let size = terminal::size()?;
@@ -288,7 +283,11 @@ fn render_everything_except_board<W: io::Write>(
         cursor::MoveTo(0, size.1),
         style::SetBackgroundColor(Color::White),
         style::SetForegroundColor(Color::Black),
-        style::Print(format!("{}{}", controls, " ".repeat(size.0 as usize - controls.chars().count()))),
+        style::Print(format!(
+            "{}{}",
+            controls,
+            " ".repeat(size.0 as usize - controls.chars().count())
+        )),
         style::ResetColor
     )?;
 
@@ -298,33 +297,207 @@ fn render_everything_except_board<W: io::Write>(
     Ok(())
 }
 
-fn render_board<W: io::Write>(
-    writer: &mut W,
-    game: &Game,
-) -> io::Result<()> {
+fn render_board<W: io::Write>(writer: &mut W, game: &Game) -> io::Result<()> {
+    let game_state = game.read_board_state();
+    let max_item_length = game_state.iter().fold(0usize, |max_row_len, vec| {
+        cmp::max(
+            max_row_len,
+            vec.iter().fold(0usize, |max_item_len, item| {
+                cmp::max(max_item_len, (2u32.pow(*item as u32)).to_string().len())
+            }),
+        )
+    });
+
     let size = terminal::size()?;
 
-    // draw board
-    let board_text_lines = game
-        .to_string()
-        .split('\n')
-        .map(|s| s.to_string())
-        .collect::<Vec<String>>();
-    let board_text_height = board_text_lines.len();
-    let board_text_width = board_text_lines[0].chars().count();
-    let board_left_side_x_pos = (size.0 - board_text_width as u16) / 2;
-    let board_top_side_y_pos = (size.1 - board_text_height as u16) / 2;
+    let cell_width = max_item_length + 2; // add two for a space on each side
+    let grid_width = game_state[0].len();
 
-    for (pos, str) in board_text_lines.iter().enumerate() {
+    let board_height = game_state.len() * 4; // in rows
+    let board_width = (cell_width + 1) * grid_width + 1; // in columns
+
+    let board_left_side_x_pos = (size.0 - board_width as u16) / 2;
+    let board_top_side_y_pos = (size.1 - board_height as u16) / 2;
+
+    for (index, row) in game_state.iter().enumerate() {
         queue!(
             writer,
-            cursor::MoveTo(board_left_side_x_pos, board_top_side_y_pos + pos as u16),
-            style::Print(str),
+            cursor::MoveTo(
+                board_left_side_x_pos,
+                board_top_side_y_pos + (4 * index as u16) + 1
+            ),
+            style::Print(create_data_row_without_text(cell_width, '│', '│', '│', row)),
+            cursor::MoveTo(
+                board_left_side_x_pos,
+                board_top_side_y_pos + (4 * index as u16) + 2
+            ),
+            style::Print(create_data_row(cell_width, '│', '│', '│', row)),
+            cursor::MoveTo(
+                board_left_side_x_pos,
+                board_top_side_y_pos + (4 * index as u16) + 3
+            ),
+            style::Print(create_data_row_without_text(cell_width, '│', '│', '│', row)),
+            cursor::MoveTo(
+                board_left_side_x_pos,
+                board_top_side_y_pos + (4 * index as u16) + 4
+            ),
+            style::Print(create_constant_row(
+                grid_width, cell_width, '├', '┼', '┤', '─'
+            )),
         )?;
     }
 
-    writer.flush()?;
+    // draw top and bottom borders
+    queue!(
+        writer,
+        cursor::MoveTo(board_left_side_x_pos, board_top_side_y_pos),
+        style::Print(create_constant_row(grid_width, cell_width, '┌', '┬', '┐', '─').as_str()),
+        cursor::MoveTo(
+            board_left_side_x_pos,
+            board_top_side_y_pos + board_height as u16
+        ),
+        style::Print(create_constant_row(grid_width, cell_width, '└', '┴', '┘', '─').as_str())
+    )?;
+
     Ok(())
+}
+
+/// Creates a constant row of text for the grid with specified formatting.
+///
+/// This function generates a row of text with a specified number of cells, each cell having a
+/// specified width and containing the same filler character. The row is formatted with opening,
+/// joining, and closing characters.
+///
+/// # Arguments
+///
+/// - `number_of_cells`: The number of cells in the row.
+/// - `cell_width`: The width of each cell, including spaces.
+/// - `opening_char`: The character used at the beginning of the row.
+/// - `joining_char`: The character used to join cells within the row.
+/// - `closing_char`: The character used at the end of the row.
+/// - `filler_char`: The character used to fill each cell.
+///
+/// # Returns
+///
+/// A `String` containing the generated row of text.
+///
+fn create_constant_row(
+    number_of_cells: usize,
+    cell_width: usize,
+    opening_char: char,
+    joining_char: char,
+    closing_char: char,
+    filler_char: char,
+) -> String {
+    format!(
+        "{}{}{}\n",
+        opening_char,
+        (0..number_of_cells)
+            .map(|_| filler_char.to_string().repeat(cell_width))
+            .collect::<Vec<String>>()
+            .join(joining_char.to_string().as_str()),
+        closing_char
+    )
+}
+
+fn create_data_row(
+    cell_width: usize,
+    opening_char: char,
+    joining_char: char,
+    closing_char: char,
+    data: &[TileType],
+) -> String {
+    format!(
+        "{}{}{}\n",
+        opening_char.white().on_black(),
+        data.iter()
+            .map(|&tile| format_tile_for_display_with_number(tile, cell_width).to_string())
+            .collect::<Vec<String>>()
+            .join(joining_char.white().on_black().to_string().as_str()),
+        closing_char.white().on_black()
+    )
+}
+
+fn create_data_row_without_text(
+    cell_width: usize,
+    opening_char: char,
+    joining_char: char,
+    closing_char: char,
+    data: &[TileType],
+) -> String {
+    format!(
+        "{}{}{}\n",
+        opening_char.white().on_black(),
+        data.iter()
+            .map(|&tile| format_tile_for_display_without_number(tile, cell_width).to_string())
+            .collect::<Vec<String>>()
+            .join(joining_char.white().on_black().to_string().as_str()),
+        closing_char.white().on_black()
+    )
+}
+
+fn format_tile_for_display_without_number(
+    tile: TileType,
+    cell_width: usize,
+) -> StyledContent<String> {
+    let padded_string = " ".repeat(cell_width);
+    match tile {
+        0 => padded_string.on_black(),
+        1 => padded_string.on_white(),
+        2 => padded_string.on_white(),
+        3 => padded_string.on_yellow(),
+        4 => padded_string.on_yellow(),
+        5 => padded_string.on_yellow(),
+        6 => padded_string.on_red(),
+        7 => padded_string.on_red(),
+        8 => padded_string.on_red(),
+        9 => padded_string.on_magenta(),
+        10 => padded_string.on_magenta(),
+        11 => padded_string.on_magenta(),
+        12 => padded_string.on_cyan(),
+        13 => padded_string.on_cyan(),
+        14 => padded_string.on_cyan(),
+        15 => padded_string.on_green(),
+        16 => padded_string.on_green(),
+        _ => padded_string.on_green(),
+    }
+}
+
+fn format_tile_for_display_with_number(tile: TileType, cell_width: usize) -> StyledContent<String> {
+    let number_as_string = if tile == 0 {
+        " ".to_string()
+    } else {
+        2u32.pow(tile as u32).to_string()
+    };
+
+    let spaces_before = (cell_width - number_as_string.len()) / 2;
+    let spaces_after = (cell_width - number_as_string.len()) - spaces_before; // subtract here because spaces_before and spaces_after aren't equal if cell_width - item length is odd, and want all cells to be consistent width
+    let padded_string = format!(
+        "{}{}{}",
+        " ".repeat(spaces_before),
+        number_as_string,
+        " ".repeat(spaces_after)
+    );
+    match tile {
+        0 => padded_string.white().on_black(),
+        1 => padded_string.black().on_white(),
+        2 => padded_string.black().on_white(),
+        3 => padded_string.black().on_yellow(),
+        4 => padded_string.black().on_yellow(),
+        5 => padded_string.black().on_yellow(),
+        6 => padded_string.white().on_red(),
+        7 => padded_string.white().on_red(),
+        8 => padded_string.white().on_red(),
+        9 => padded_string.black().on_magenta(),
+        10 => padded_string.black().on_magenta(),
+        11 => padded_string.black().on_magenta(),
+        12 => padded_string.black().on_cyan(),
+        13 => padded_string.black().on_cyan(),
+        14 => padded_string.black().on_cyan(),
+        15 => padded_string.black().on_green(),
+        16 => padded_string.black().on_green(),
+        _ => padded_string.black().on_green(),
+    }
 }
 
 fn render_game_state_error<W: io::Write>(writer: &mut W, e: &GameError) -> ! {
@@ -353,17 +526,15 @@ fn render_game_state_error<W: io::Write>(writer: &mut W, e: &GameError) -> ! {
     writer.flush().unwrap();
 
     loop {
-        match event::read() {
-            Ok(Event::Key(KeyEvent {
-                kind: KeyEventKind::Press,
-                ..
-            })) => {
-                writer
-                    .execute(terminal::LeaveAlternateScreen)
-                    .expect("Couldn't leave alternate screen buffer");
-                exit(1);
-            }
-            _ => {}
+        if let Ok(Event::Key(KeyEvent {
+            kind: KeyEventKind::Press,
+            ..
+        })) = event::read()
+        {
+            writer
+                .execute(terminal::LeaveAlternateScreen)
+                .expect("Couldn't leave alternate screen buffer");
+            exit(1);
         }
     }
 }

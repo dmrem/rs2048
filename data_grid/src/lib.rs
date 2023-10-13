@@ -211,6 +211,11 @@ impl<T: Clone> DataGrid<T> {
     pub fn get_width(&self) -> usize {
         self.values[0].len()
     }
+
+    // get data in grid immutably - this exists to read all the data without needing to clone each row
+    pub fn get_values(&self) -> &Vec<Vec<T>> {
+        &self.values
+    }
 }
 
 impl<T: Clone> TryFrom<Vec<Vec<T>>> for DataGrid<T> {
