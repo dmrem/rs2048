@@ -216,6 +216,19 @@ fn get_padded_string(text: &str, width: usize) -> String {
     )
 }
 
+/// Runs the main game loop, handling user input and game state updates.
+///
+/// This function takes an `io::Write` implementor for rendering to the terminal and the initial game state.
+/// It continuously updates the game state based on user input and renders the game board and controls.
+///
+/// # Arguments
+///
+/// * `writer` - A mutable reference to an `io::Write` implementor for writing to the terminal.
+/// * `initial_game_state` - The initial game state, represented as a `Result<Game, GameError>`.
+///
+/// # Returns
+///
+/// Returns an `io::Result` that indicates success or failure.
 fn game_loop<W: io::Write>(
     writer: &mut W,
     initial_game_state: Result<Game, GameError>,
@@ -273,6 +286,17 @@ fn game_loop<W: io::Write>(
     Ok(())
 }
 
+/// Renders all elements on the screen except the game board.
+///
+/// This function clears the terminal and renders game controls and score information.
+///
+/// # Arguments
+///
+/// * `writer` - A mutable reference to an `io::Write` implementor for writing to the terminal.
+///
+/// # Returns
+///
+/// Returns an `io::Result` that indicates success or failure.
 fn render_everything_except_board<W: io::Write>(writer: &mut W) -> io::Result<()> {
     writer.queue(Clear(ClearType::All))?;
 
@@ -297,6 +321,18 @@ fn render_everything_except_board<W: io::Write>(writer: &mut W) -> io::Result<()
     Ok(())
 }
 
+/// Renders the game board on the terminal.
+///
+/// This function renders the game board, including tiles and borders, on the terminal.
+///
+/// # Arguments
+///
+/// * `writer` - A mutable reference to an `io::Write` implementor for writing to the terminal.
+/// * `game` - A reference to the `Game` struct representing the game state.
+///
+/// # Returns
+///
+/// Returns an `io::Result` that indicates success or failure.
 fn render_board<W: io::Write>(writer: &mut W, game: &Game) -> io::Result<()> {
     let game_state = game.read_board_state();
     let max_item_length = game_state.iter().fold(0usize, |max_row_len, vec| {
@@ -400,6 +436,22 @@ fn create_constant_row(
     )
 }
 
+/// Creates a row of text with data for the game board.
+///
+/// This function formats the provided data to match how it is shown on the screen, including
+/// setting the correct padding, colours, and tile separators.
+///
+/// # Arguments
+///
+/// * `cell_width` - The width of each cell, including spaces.
+/// * `opening_char` - The character used at the beginning of the row.
+/// * `joining_char` - The character used to join cells within the row.
+/// * `closing_char` - The character used at the end of the row.
+/// * `data` - A slice containing the tile data to be displayed in the row.
+///
+/// # Returns
+///
+/// A `String` containing the generated row of text.
 fn create_data_row(
     cell_width: usize,
     opening_char: char,
@@ -418,6 +470,21 @@ fn create_data_row(
     )
 }
 
+/// Creates a row of text with data for the game board without displaying tile numbers.
+///
+/// This function is identical to create_data_row, except that it replaces the numbers in each tile with spaces.
+///
+/// # Arguments
+///
+/// * `cell_width` - The width of each cell, including spaces.
+/// * `opening_char` - The character used at the beginning of the row.
+/// * `joining_char` - The character used to join cells within the row.
+/// * `closing_char` - The character used at the end of the row.
+/// * `data` - A slice containing the tile data to be displayed in the row.
+///
+/// # Returns
+///
+/// A `String` containing the generated row of text.
 fn create_data_row_without_text(
     cell_width: usize,
     opening_char: char,
@@ -436,6 +503,17 @@ fn create_data_row_without_text(
     )
 }
 
+/// Formats a tile for display on the game board. This function does not print the number for the tile.
+/// It sets the background colour depending on the value of the tile.
+///
+/// # Arguments
+///
+/// * `tile` - The tile value (TileType) to be formatted.
+/// * `cell_width` - The width of the cell, including spaces.
+///
+/// # Returns
+///
+/// A `StyledContent` containing the tile formatted for display without the tile number.
 fn format_tile_for_display_without_number(
     tile: TileType,
     cell_width: usize,
@@ -463,6 +541,18 @@ fn format_tile_for_display_without_number(
     }
 }
 
+/// Formats a tile for display on the game board including the tile number.
+///
+/// This function formats a tile to be displayed on the game board, including the tile number.
+///
+/// # Arguments
+///
+/// * `tile` - The tile value (TileType) to be formatted.
+/// * `cell_width` - The width of the cell, including spaces.
+///
+/// # Returns
+///
+/// A `StyledContent` containing the tile formatted for display with the tile number.
 fn format_tile_for_display_with_number(tile: TileType, cell_width: usize) -> StyledContent<String> {
     let number_as_string = if tile == 0 {
         " ".to_string()
@@ -500,6 +590,14 @@ fn format_tile_for_display_with_number(tile: TileType, cell_width: usize) -> Sty
     }
 }
 
+/// Renders the error state and exits the program.
+///
+/// This function renders the error message and terminates the program.
+///
+/// # Arguments
+///
+/// * `writer` - A mutable reference to an `io::Write` implementor for writing to the terminal.
+/// * `e` - A reference to the `GameError` containing the error information.
 fn render_game_state_error<W: io::Write>(writer: &mut W, e: &GameError) -> ! {
     // this function always exits the program anyway, so if printing the error fails
     // we just panic
